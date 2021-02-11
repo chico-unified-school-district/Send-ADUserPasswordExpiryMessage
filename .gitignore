@@ -1,0 +1,8 @@
+*.zip
+*.log
+*.pw
+log/*
+logs/*
+.desktop.ini
+*.desktop.ini
+*.cp
