@@ -60,7 +60,7 @@ $users = Get-ADUser @params | Where-Object { $_.DistinguishedName -notlike "*New
 Select-Object -Property 'samAccountName', 'homepage', 'mail', @{Name = "ExpiryDate"; Expression = { [datetime]::FromFileTime($_."msDS-UserPasswordExpiryTimeComputed") } }
 
 function sendMail ([string]$to,[string]$type){
- Add-Log O365 ('{0} Sending {1} message' -f $to, $type) -WhatIf:$WhatIf
+ Add-Log $type ('{0} Sending {1} message' -f $to, $type) -WhatIf:$WhatIf
  if ($WhatIf){ $mailParams }
  else {
   $cnt = 0
