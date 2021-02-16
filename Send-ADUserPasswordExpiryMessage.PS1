@@ -116,8 +116,7 @@ function notifyUsers ($usersObject, [string]$groupName){
      'Sleeping for 10 seconds...'
      Start-Sleep 10
     }
-
-    Add-Log email ('{0},{1},Password Expiry Messages Sent' -f $user.mail, $user.homepage)
+    Write-Verbose ('{0},{1},Password Expiry Messages Sent' -f $user.mail, $user.homepage)
    }
   }
  }
