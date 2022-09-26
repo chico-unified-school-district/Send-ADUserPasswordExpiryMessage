@@ -12,15 +12,14 @@ Special Thanks to Robert Allen!: https://activedirectorypro.com/how-to-get-ad-us
 [CMDLETBINDING()]
 param (
  [Parameter(Mandatory = $True)]
- [Alias('DC', 'Server')]
- [ValidateScript( { Test-Connection -ComputerName $_ -Quiet -Count 1 })]
- [string]$DomainController,
+ [Alias('DCs')]
+ [string[]]$DomainControllers,
  # PSSession to Domain Controller and Use Active Directory CMDLETS
  [Parameter(Mandatory = $True)]
  [Alias('ADCred')]
  [System.Management.Automation.PSCredential]$ADCredential,
  [Parameter(Mandatory = $True)]
- [Alias('MailCred','emailCred')]
+ [Alias('MailCred', 'emailCred')]
  # Use an Microsoft email account with looser restriction on your SPAM filter
  [System.Management.Automation.PSCredential]$EmailCredential,
  # Add a recipient to monitor sent messages.
@@ -30,16 +29,18 @@ param (
 	[switch]$WhatIf
 )
 
-# Clear-Host ; $error.clear() # Clear screen and error log.
-Get-PSSession | Remove-PSSession -WhatIf:$false
-
-# AD Domain Controller Session
-$adCmdLets = 'Get-ADUser'
-$adSession = New-PSSession -ComputerName $DomainController -Credential $ADCredential
-Import-PSSession -Session $adSession -Module ActiveDirectory -CommandName $adCmdLets -AllowClobber > $null
-
 # Imported Functions
 . .\lib\Add-Log.ps1
+. .\lib\Clear-SessionData.ps1
+. .\lib\New-ADSession.ps1
+. .\lib\Select-DomainController.ps1
+. .\lib\Show-TestRun.ps1
+
+Show-TestRun
+Clear-SessionData
+
+$dc = Select-DomainController $DomainControllers
+New-ADSession -dc $dc -cmdlets 'Get-ADUser' -cred $ADCredential
 
 $expiryHtmlMessagetemplate = Get-Content -Path '.\lib\PasswordWarningMessage.html' -Raw
 
@@ -59,9 +60,9 @@ $params = @{
 $users = Get-ADUser @params | Where-Object { $_.DistinguishedName -notlike "*New Employee Accounts*" } |
 Select-Object -Property 'samAccountName', 'homepage', 'mail', @{Name = "ExpiryDate"; Expression = { [datetime]::FromFileTime($_."msDS-UserPasswordExpiryTimeComputed") } }
 
-function sendMail ([string]$to,[string]$type){
+function sendMail ([string]$to, [string]$type) {
  Add-Log $type ('{0} Sending {1} message' -f $to, $type) -WhatIf:$WhatIf
- if ($WhatIf){ $mailParams }
+ if ($WhatIf) { $mailParams }
  else {
   $cnt = 0
   do {
@@ -70,7 +71,8 @@ function sendMail ([string]$to,[string]$type){
     $mailError = $null
     Send-MailMessage @mailParams -To $to -ErrorVariable mailError
     return # exit loop if successful
-   } catch {
+   }
+   catch {
     $mailError
     Start-Sleep 10 # Wait 10 seconds before trying again
    }
@@ -80,15 +82,15 @@ function sendMail ([string]$to,[string]$type){
  }
 }
 
-function notifyUsers ($usersObject, [string]$groupName){
+function notifyUsers ($usersObject, [string]$groupName) {
  BEGIN {
   Add-Log beginprocess ('Notifying {0} group' -f $groupName)
   # 'BEGIN'
  }
  PROCESS {
   # Check usersObject
-  if ($null -ne $usersObject.count){
-   Add-Log info ('Users to Notify: '+$usersObject.count)
+  if ($null -ne $usersObject.count) {
+   Add-Log info ('Users to Notify: ' + $usersObject.count)
    foreach (	$user in $usersObject ) {
     if ( $null -eq $user ) { continue }
     Write-Debug ('Process {0} ?' -f $user.samAccountName)
@@ -137,12 +139,12 @@ $oneWeekNotify = $users | Where-Object { ($_.ExpiryDate -gt (getBeginDate 7)) -a
 # Gets accounts with pw expiry dates within the 14 day timeframe.
 $twoWeekNotify = $users | Where-Object { ($_.ExpiryDate -gt (getBeginDate 14)) -and ($_.ExpiryDate -lt (getEndDate 14)) }
 
-if ($oneDayNotify) { notifyUsers -usersObject $oneDayNotify -groupName 'oneDayNotify'}
-if ($threeDayNotify) { notifyUsers -usersObject $threeDayNotify -groupName 'threeDayNotify'}
-if ($oneWeekNotify) { notifyUsers -usersObject $oneWeekNotify -groupName 'oneWeekNotify'}
-if ($twoWeekNotify) { notifyUsers -usersObject $twoWeekNotify -groupName 'twoWeekNotify'}
+if ($oneDayNotify) { notifyUsers -usersObject $oneDayNotify -groupName 'oneDayNotify' }
+if ($threeDayNotify) { notifyUsers -usersObject $threeDayNotify -groupName 'threeDayNotify' }
+if ($oneWeekNotify) { notifyUsers -usersObject $oneWeekNotify -groupName 'oneWeekNotify' }
+if ($twoWeekNotify) { notifyUsers -usersObject $twoWeekNotify -groupName 'twoWeekNotify' }
 
 # Start-Sleep 5 # Just a delay for test runs
 
-Add-Log script 'Tearing down PS Sessions...'
-Get-PSSession | Remove-PSSession -WhatIf:$false
+Clear-SessionData
+Show-TestRun
