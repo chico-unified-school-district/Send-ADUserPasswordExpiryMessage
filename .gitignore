@@ -6,3 +6,6 @@ logs/*
 .desktop.ini
 *.desktop.ini
 *.cp
+notes.ps1
+jenkins.ps1
+/jenkins.ps1
