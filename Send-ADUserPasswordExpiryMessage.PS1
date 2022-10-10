@@ -16,6 +16,8 @@ param (
  [string[]]$DomainControllers,
  # PSSession to Domain Controller and Use Active Directory CMDLETS
  [Parameter(Mandatory = $True)]
+ [string]$OrgUnit,
+ [Parameter(Mandatory = $True)]
  [Alias('ADCred')]
  [System.Management.Automation.PSCredential]$ADCredential,
  [Parameter(Mandatory = $True)]
@@ -53,7 +55,7 @@ $params = @{
 		( Enabled -eq $True )
 	}
 	properties = 'homepage', 'mail', "msDS-UserPasswordExpiryTimeComputed"
-	searchBase = 'OU=Employees,OU=Users,OU=Domain_Root,DC=chico,DC=usd'
+	searchBase = $OrgUnit
 }
 
 # Get qualifying employee user objects
