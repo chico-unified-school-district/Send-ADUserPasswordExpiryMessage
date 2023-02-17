@@ -31,7 +31,36 @@ param (
 	[switch]$WhatIf
 )
 
+# Imported Functions
+. .\lib\Add-Log.ps1
+. .\lib\Clear-SessionData.ps1
+. .\lib\New-ADSession.ps1
+. .\lib\Select-DomainController.ps1
+. .\lib\Show-TestRun.ps1
+
+Show-TestRun
+Clear-SessionData
+
+$dc = Select-DomainController $DomainControllers
+New-ADSession -dc $dc -cmdlets 'Get-ADUser' -cred $ADCredential
+
 $expiryHtmlMessagetemplate = Get-Content -Path '.\lib\PasswordWarningMessage.html' -Raw
+
+$params = @{
+	Filter     = {
+		( employeeID -like "*" ) -and
+		( mail -like "*@chicousd.org" ) -and
+		( homepage -like "*@ChicoUSD.net" ) -and
+		( PasswordNeverExpires -eq $False ) -and
+		( Enabled -eq $True )
+	}
+	properties = 'homepage', 'mail', "msDS-UserPasswordExpiryTimeComputed"
+	searchBase = $OrgUnit
+}
+
+# Get qualifying employee user objects
+$users = Get-ADUser @params | Where-Object { $_.DistinguishedName -notlike "*New Employee Accounts*" } |
+Select-Object -Property 'samAccountName', 'homepage', 'mail', @{Name = "ExpiryDate"; Expression = { [datetime]::FromFileTime($_."msDS-UserPasswordExpiryTimeComputed") } }
 
 function sendMail ([string]$to, [string]$type) {
  Add-Log $type ('{0} Sending {1} message' -f $to, $type) -WhatIf:$WhatIf
@@ -119,42 +148,5 @@ if ($twoWeekNotify) { notifyUsers -usersObject $twoWeekNotify -groupName 'twoWee
 
 # Start-Sleep 5 # Just a delay for test runs
 
-
-function Get-ADAccounts {
- Write-Host ('{0}' -f $MyInvocation.MyCommand.Name)
- $params = @{
-  Filter     = {
-   ( employeeID -like "*" ) -and
-   ( mail -like "*@*.org" -or homepage -like "*@*.net" ) -and
-   ( Enabled -eq $True )
-  }
-  properties = 'homepage', 'mail', "msDS-UserPasswordExpiryTimeComputed"
-  searchBase = $OrgUnit
- }
- Get-ADUser @params
-}
-
-function Select-ExpiringPWObjs ([int]$days) {
- begin {
-  $cutoff = (Get-Date).AddDays(10)
- }
- process {
-  $exprDate = [datetime]::FromFileTime($_."msDS-UserPasswordExpiryTimeComputed")
-  if ($exprDate -le $cutoff) {
-   Write-Host ('{0},{1},{2}' -f $MyInvocation.MyCommand.Name, $_.samAccountName, $exprDate )
-  }
- }
-}
-
-# Imported Functions
-# . .\lib\Add-Log.ps1
-. .\lib\Clear-SessionData.ps1
-. .\lib\New-ADSession.ps1
-. .\lib\Select-DomainController.ps1
-. .\lib\Show-TestRun.ps1
-
-Show-TestRun
 Clear-SessionData
-
-$dc = Select-DomainController $DomainControllers
-New-ADSession -dc $dc -cmdlets 'Get-ADUser' -cred $ADCredential
+Show-TestRun
