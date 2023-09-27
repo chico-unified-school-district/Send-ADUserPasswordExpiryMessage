@@ -64,7 +64,7 @@ Select-Object -Property 'samAccountName', 'homepage', 'mail', @{Name = "ExpiryDa
 
 function sendMail ([string]$to, [string]$type) {
  Add-Log $type ('{0} Sending {1} message' -f $to, $type) -WhatIf:$WhatIf
- if ($WhatIf) { $mailParams }
+ if ($WhatIf) { $mailParams.Body }
  else {
   $cnt = 0
   do {
@@ -87,7 +87,7 @@ function sendMail ([string]$to, [string]$type) {
 function notifyUsers ($usersObject, [string]$groupName) {
  BEGIN {
   Add-Log beginprocess ('Notifying {0} group' -f $groupName)
-  # 'BEGIN'
+  $expiryHtmlMessagetemplate = Get-Content -Path '.\lib\PasswordWarningMessage.html' -Raw
  }
  PROCESS {
   # Check usersObject
@@ -97,11 +97,13 @@ function notifyUsers ($usersObject, [string]$groupName) {
     if ( $null -eq $user ) { continue }
     Write-Debug ('Process {0} ?' -f $user.samAccountName)
     Write-Verbose ('Processing {0}' -f $user.samAccountName)
+    $myDate = Get-Date $user.ExpiryDate | Out-String
+    $outgoingMessage = $expiryHtmlMessagetemplate -f $myDate
     $mailParams = @{
      From       = '<{0}>' -f $EmailCredential.Username
      Subject    = 'CUSD Password Expires Soon'
      BodyAsHTML = $True
-     Body       = $expiryHtmlMessagetemplate
+     Body       = $outgoingMessage
      SMTPServer = 'smtp.office365.com'
      Cred       = $EmailCredential # use a valid Office365 account with Flow rules in place to prevent SPAM warnings.
      UseSSL     = $True
