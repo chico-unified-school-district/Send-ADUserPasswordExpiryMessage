@@ -68,13 +68,15 @@ function Get-ADObjs {
 }
 
 function Limit-Spam {
- begin { function myDate ($days) { Get-Date ((Get-Date).AddDays($days)) -f yyyyMMdd } }
+ begin { function targetDate ($days) { Get-Date ((Get-Date).AddDays($days)) -f yyyyMMdd } }
  process {
   $expireDateStr = Get-Date $_.expireDate -f yyyyMMdd
-  if ($expireDateStr -eq (myDate 1)) { return $_ }
-  if ($expireDateStr -eq (myDate 3)) { return $_ }
-  if ($expireDateStr -eq (myDate 7)) { return $_ }
-  if ($expireDateStr -eq (myDate 14)) { return $_ }
+  if (
+   ($expireDateStr -eq (targetDate 1)) -or
+   ($expireDateStr -eq (targetDate 3)) -or
+   ($expireDateStr -eq (targetDate 7)) -or
+   ($expireDateStr -eq (targetDate 14))
+  ) { return $_ }
  }
 }
 
