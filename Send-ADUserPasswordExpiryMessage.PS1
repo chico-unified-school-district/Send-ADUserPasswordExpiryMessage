@@ -15,14 +15,14 @@ param (
  [string[]]$DomainControllers,
  # PSSession to Domain Controller and Use Active Directory CMDLETS
  [Parameter(Mandatory = $True)]
- [string]$OrgUnit,
- [Parameter(Mandatory = $True)]
  [Alias('ADCred')]
- [System.Management.Automation.PSCredential]$ADCredential,
+ [PSCredential]$ADCredential,
+ [Parameter(Mandatory = $True)]
+ [string]$OrgUnit,
  [Parameter(Mandatory = $True)]
  [Alias('MailCred', 'emailCred')]
  # Use an Microsoft email account with looser restriction on your SPAM filter
- [System.Management.Automation.PSCredential]$EmailCredential,
+ [PSCredential]$EmailCredential,
  # Add a recipient to monitor sent messages.
  [Parameter(Mandatory = $false)]
  [array]$Bcc,
@@ -92,14 +92,15 @@ function Send-PwMsg {
    UseSSL     = $True
    Port       = 587
    Bcc        = $null
+   To         = $null
   }
   if ( $Bcc ) { $mailParams.Bcc = $Bcc } # Add Bcc to outgoing email messages.
  }
  process {
-  $to = "<$($_.mail1)>", "<$($_.mail2)>"
-  $msg = $MyInvocation.MyCommand.Name, ($to -join ','), ((Get-Date $_.expireDate -f 'D').Replace(',', ''))
+  $mailParams.To = "<$($_.mail1)>", "<$($_.mail2)>"
+  $msg = $MyInvocation.MyCommand.Name, ($mailParams.To -join ','), ((Get-Date $_.expireDate -f 'D').Replace(',', ''))
   Write-Host ('{0},{1},{2}' -f $msg)
-  if (!$WhatIf) { Send-MailMessage @mailParams -To $to }
+  if (!$WhatIf) { Send-MailMessage @mailParams }
   $_
  }
 }
@@ -111,15 +112,6 @@ function Show-Obj { Process { Write-Verbose ($MyInvocation.MyCommand.Name, $_ | 
 . .\lib\New-ADSession.ps1
 . .\lib\Select-DomainController.ps1
 . .\lib\Show-TestRun.ps1
-
 Show-TestRun
-
-$dc = Select-DomainController $DomainControllers
-New-ADSession -dc $dc -cmdlets 'Get-ADUser' -cred $ADCredential
-
-Get-ADObjs |
-Format-Obj |
-Limit-Spam |
-Format-Message |
-Send-PwMsg |
-Show-Obj
+New-ADSession -dc (Select-DomainController $DomainControllers) -cmdlets 'Get-ADUser' -cred $ADCredential
+Get-ADObjs | Format-Obj | Limit-Spam | Format-Message | Send-PwMsg | Show-Obj
