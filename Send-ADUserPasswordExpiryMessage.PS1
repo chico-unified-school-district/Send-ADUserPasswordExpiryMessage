@@ -97,7 +97,8 @@ function Send-PwMsg {
  }
  process {
   $to = "<$($_.mail1)>", "<$($_.mail2)>"
-  Write-Host ('{0},{1},{2}' -f $MyInvocation.MyCommand.Name, ($to -join ','), $_.expireDate)
+  $msg = $MyInvocation.MyCommand.Name, ($to -join ','), ((Get-Date $_.expireDate -f 'D').Replace(',', ''))
+  Write-Host ('{0},{1},{2}' -f $msg)
   if (!$WhatIf) { Send-MailMessage @mailParams -To $to }
   $_
  }
