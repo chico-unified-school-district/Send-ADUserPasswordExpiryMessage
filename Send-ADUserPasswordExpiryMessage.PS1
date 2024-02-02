@@ -13,21 +13,17 @@ param (
  [Parameter(Mandatory = $True)]
  [Alias('DCs')]
  [string[]]$DomainControllers,
- # PSSession to Domain Controller and Use Active Directory CMDLETS
  [Parameter(Mandatory = $True)]
- [Alias('ADCred')]
  [PSCredential]$ADCredential,
  [Parameter(Mandatory = $True)]
  [string]$OrgUnit,
  [Parameter(Mandatory = $True)]
- [Alias('MailCred', 'emailCred')]
- # Use an Microsoft email account with looser restriction on your SPAM filter
+ [Alias('MailCred')]
  [PSCredential]$EmailCredential,
- # Add a recipient to monitor sent messages.
  [Parameter(Mandatory = $false)]
  [array]$Bcc,
  [Alias('wi')]
-	[switch]$WhatIf
+ [switch]$WhatIf
 )
 
 function Format-Obj {
@@ -45,7 +41,7 @@ function Format-Message {
  begin { $baseHtml = Get-Content -Path '.\lib\PasswordWarningMessage.html' -Raw }
  process {
   $_.html = $baseHtml -f ([string](Get-DAte $_.expireDate -Format 'D'))
-  Write-Verbose ($_.html | Out-String)
+  # Write-Verbose ($_.html | Out-String)
   $_
  }
 }
