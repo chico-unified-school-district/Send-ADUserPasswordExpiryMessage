@@ -41,7 +41,7 @@ function Format-Message {
  begin { $baseHtml = Get-Content -Path '.\lib\PasswordWarningMessage.html' -Raw }
  process {
   $_.html = $baseHtml -f ([string](Get-DAte $_.expireDate -Format 'D'))
-  # Write-Verbose ($_.html | Out-String)
+  if ($_.html.length -lt 1) { Write-Error ('{0},{1}' -f $MyInvocation.MyCommand.Name, $_.samid) }
   $_
  }
 }
@@ -84,7 +84,7 @@ function Send-PwMsg {
    From       = '<{0}>' -f $EmailCredential.Username
    Subject    = 'CUSD Password Expires Soon'
    BodyAsHTML = $True
-   Body       = $_.html
+   Body       = $null
    SMTPServer = 'smtp.office365.com'
    Cred       = $EmailCredential # use a valid Office365 account with Flow rules in place to prevent SPAM warnings.
    UseSSL     = $True
@@ -95,11 +95,12 @@ function Send-PwMsg {
   if ( $Bcc ) { $mailParams.Bcc = $Bcc } # Add Bcc to outgoing email messages.
  }
  process {
+  $mailParams.Body = $_.html
   $mailParams.To = "<$($_.mail1)>", "<$($_.mail2)>"
   $msg = $MyInvocation.MyCommand.Name, ($mailParams.To -join ','), ((Get-Date $_.expireDate -f 'D').Replace(',', ''))
   Write-Host ('{0},{1},{2}' -f $msg)
   if (!$WhatIf) { Send-MailMessage @mailParams }
-  $_
+  $mailParams
  }
 }
 
@@ -112,4 +113,9 @@ function Show-Obj { Process { Write-Verbose ($MyInvocation.MyCommand.Name, $_ | 
 . .\lib\Show-TestRun.ps1
 Show-TestRun
 New-ADSession -dc (Select-DomainController $DomainControllers) -cmdlets 'Get-ADUser' -cred $ADCredential
-Get-ADObjs | Format-Obj | Limit-Spam | Format-Message | Send-PwMsg | Show-Obj
+Get-ADObjs |
+Format-Obj |
+Limit-Spam |
+Format-Message |
+Send-PwMsg |
+Show-Obj
