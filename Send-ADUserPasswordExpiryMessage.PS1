@@ -70,7 +70,9 @@ function Limit-Spam {
   if (
    ($expireDateStr -eq (targetDate 1)) -or
    ($expireDateStr -eq (targetDate 3)) -or
+   ($expireDateStr -eq (targetDate 5)) -or
    ($expireDateStr -eq (targetDate 7)) -or
+   ($expireDateStr -eq (targetDate 10)) -or
    ($expireDateStr -eq (targetDate 14))
   ) { return $_ }
  }
