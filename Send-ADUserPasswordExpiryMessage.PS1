@@ -21,7 +21,7 @@ param (
  [Alias('MailCred')]
  [PSCredential]$EmailCredential,
  [Parameter(Mandatory = $false)]
- [array]$Bcc,
+ [string[]]$Bcc,
  [Alias('wi')]
  [switch]$WhatIf
 )
