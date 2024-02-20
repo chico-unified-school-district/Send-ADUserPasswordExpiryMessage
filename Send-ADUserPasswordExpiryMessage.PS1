@@ -84,13 +84,10 @@ function Send-PwMsg {
    From       = '<{0}>' -f $EmailCredential.Username
    Subject    = 'CUSD Password Expires Soon'
    BodyAsHTML = $True
-   Body       = $null
    SMTPServer = 'smtp.office365.com'
    Cred       = $EmailCredential # use a valid Office365 account with Flow rules in place to prevent SPAM warnings.
    UseSSL     = $True
    Port       = 587
-   Bcc        = $null
-   To         = $null
   }
   if ( $Bcc ) { $mailParams.Bcc = $Bcc } # Add Bcc to outgoing email messages.
  }
@@ -108,9 +105,11 @@ function Show-Obj { Process { Write-Verbose ($MyInvocation.MyCommand.Name, $_ | 
 
 # ======================== Main ========================
 # Imported Functions
+. .\lib\Load-Module.ps1
 . .\lib\New-ADSession.ps1
 . .\lib\Select-DomainController.ps1
 . .\lib\Show-TestRun.ps1
+
 Show-TestRun
 New-ADSession -dc (Select-DomainController $DomainControllers) -cmdlets 'Get-ADUser' -cred $ADCredential
 Get-ADObjs |
