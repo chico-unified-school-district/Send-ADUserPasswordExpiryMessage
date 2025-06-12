@@ -28,38 +28,40 @@ param (
 
 function Format-Obj {
  process {
-  $obj = '' | Select-Object samid, mail1, mail2, expireDate, html
-  $obj.samid = $_.SamAccountName
-  $obj.mail1 = $_.Mail
-  $obj.mail2 = $_.HomePage
-  $obj.expireDate = $_.ExpiryDate
-  $obj
+  [PSCustomObject]@{
+   samid      = $_.SamAccountName
+   mail1      = $_.Mail
+   mail2      = $_.HomePage
+   expireDate = $_.ExpiryDate
+   html       = $null
+  }
  }
 }
 
 function Format-Message {
  begin { $baseHtml = Get-Content -Path '.\lib\PasswordWarningMessage.html' -Raw }
  process {
-  $_.html = $baseHtml -f ([string](Get-DAte $_.expireDate -Format 'D'))
+  $_.html = $baseHtml -Replace 'MYEXPIREDATE', ([string](Get-DAte $_.expireDate -Format 'D'))
   if ($_.html.length -lt 1) { Write-Error ('{0},{1}' -f $MyInvocation.MyCommand.Name, $_.samid) }
+  Write-Verbose ($MyInvocation.MyCommand.Name, $_.html | Out-String)
   $_
  }
 }
 
-function Get-ADObjs {
+function Get-ADObjs ($ou) {
  $params = @{
   Filter     = "employeeID -like '*' -and mail -like '*@*' -and homepage -like '*@*' -and
    PasswordNeverExpires -eq 'False' -and Enabled -eq 'True'"
-  searchBase = $OrgUnit
+  searchBase = $ou
   properties = 'HomePage', 'Mail', "msDS-UserPasswordExpiryTimeComputed"
  }
  # Get qualifying employee user objects
  $cutOff = (Get-Date).AddDays(14)
  $users = Get-ADUser @params | Where-Object { $_.DistinguishedName -notlike "*New Employee Accounts*" } |
- Select-Object -Property 'SamAccountName', 'homepage', 'mail',
- @{Name = "ExpiryDate"; Expression = { [datetime]::FromFileTime($_."msDS-UserPasswordExpiryTimeComputed") } } |
- Where-Object { ($_.ExpiryDate -is [datetime]) -and $_.ExpiryDate -lt $cutOff } | Sort-Object -Property ExpiryDate
- if ($users) { Write-Host ('{0},{1}' -f $MyInvocation.MyCommand.Name, $users.count) }
+  Select-Object -Property 'SamAccountName', 'homepage', 'mail',
+  @{Name = "ExpiryDate"; Expression = { [datetime]::FromFileTime($_."msDS-UserPasswordExpiryTimeComputed") } } |
+   Where-Object { ($_.ExpiryDate -is [datetime]) -and $_.ExpiryDate -lt $cutOff } | Sort-Object -Property ExpiryDate
+ Write-Host ('{0},{1}' -f $MyInvocation.MyCommand.Name, @($users).count) -F Green
  $users
 }
 
@@ -95,7 +97,7 @@ function Send-PwMsg {
   $mailParams.Body = $_.html
   $mailParams.To = "<$($_.mail1)>", "<$($_.mail2)>"
   $msg = $MyInvocation.MyCommand.Name, ($mailParams.To -join ','), ((Get-Date $_.expireDate -f 'D').Replace(',', ''))
-  Write-Host ('{0},{1},{2}' -f $msg)
+  Write-Host ('{0},{1},{2}' -f $msg) -F Blue
   if (!$WhatIf) { Send-MailMessage @mailParams }
   $mailParams
  }
@@ -103,18 +105,13 @@ function Send-PwMsg {
 
 function Show-Obj { Process { Write-Verbose ($MyInvocation.MyCommand.Name, $_ | Out-String) } }
 
-# ======================== Main ========================
-# Imported Functions
-. .\lib\Load-Module.ps1
-. .\lib\New-ADSession.ps1
-. .\lib\Select-DomainController.ps1
-. .\lib\Show-TestRun.ps1
+# ================================================
+Import-Module -Name 'dbatools', 'CommonScriptFunctions'
 
-Show-TestRun
-New-ADSession -dc (Select-DomainController $DomainControllers) -cmdlets 'Get-ADUser' -cred $ADCredential
-Get-ADObjs |
-Format-Obj |
-Limit-Spam |
-Format-Message |
-Send-PwMsg |
-Show-Obj
+Connect-ADSession -DomainControllers $DomainControllers -Credential $ADCredential -Cmdlets 'Get-ADUser'
+Get-ADObjs $OrgUnit |
+ Format-Obj |
+  Limit-Spam |
+   Format-Message |
+    Send-PwMsg |
+     Show-Obj
