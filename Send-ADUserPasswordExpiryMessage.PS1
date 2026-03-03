@@ -41,7 +41,7 @@ function Format-Obj {
 function Format-Message {
  begin { $baseHtml = Get-Content -Path '.\lib\PasswordWarningMessage.html' -Raw }
  process {
-  $_.html = $baseHtml -Replace 'MYEXPIREDATE', ([string](Get-DAte $_.expireDate -Format 'D'))
+  $_.html = $baseHtml -replace 'MYEXPIREDATE', ([string](Get-Date $_.expireDate -Format 'D'))
   if ($_.html.length -lt 1) { Write-Error ('{0},{1}' -f $MyInvocation.MyCommand.Name, $_.samid) }
   Write-Verbose ($MyInvocation.MyCommand.Name, $_.html | Out-String)
   $_
@@ -53,13 +53,13 @@ function Get-ADObjs ($ou) {
   Filter     = "employeeID -like '*' -and mail -like '*@*' -and homepage -like '*@*' -and
    PasswordNeverExpires -eq 'False' -and Enabled -eq 'True'"
   searchBase = $ou
-  properties = 'HomePage', 'Mail', "msDS-UserPasswordExpiryTimeComputed"
+  properties = 'HomePage', 'Mail', 'msDS-UserPasswordExpiryTimeComputed'
  }
  # Get qualifying employee user objects
  $cutOff = (Get-Date).AddDays(14)
- $users = Get-ADUser @params | Where-Object { $_.DistinguishedName -notlike "*New Employee Accounts*" } |
+ $users = Get-ADUser @params | Where-Object { $_.DistinguishedName -notlike '*New Employee Accounts*' } |
   Select-Object -Property 'SamAccountName', 'homepage', 'mail',
-  @{Name = "ExpiryDate"; Expression = { [datetime]::FromFileTime($_."msDS-UserPasswordExpiryTimeComputed") } } |
+  @{Name = 'ExpiryDate'; Expression = { [datetime]::FromFileTime($_.'msDS-UserPasswordExpiryTimeComputed') } } |
    Where-Object { ($_.ExpiryDate -is [datetime]) -and $_.ExpiryDate -lt $cutOff } | Sort-Object -Property ExpiryDate
  Write-Host ('{0},{1}' -f $MyInvocation.MyCommand.Name, @($users).count) -F Green
  $users
@@ -85,28 +85,28 @@ function Send-PwMsg {
   $mailParams = @{
    From       = '<{0}>' -f $EmailCredential.Username
    Subject    = 'CUSD Password Expires Soon'
-   BodyAsHTML = $True
    SMTPServer = 'smtp.office365.com'
    Cred       = $EmailCredential # use a valid Office365 account with Flow rules in place to prevent SPAM warnings.
    UseSSL     = $True
    Port       = 587
+   WhatIf     = $WhatIf
   }
   if ( $Bcc ) { $mailParams.Bcc = $Bcc } # Add Bcc to outgoing email messages.
  }
  process {
-  $mailParams.Body = $_.html
+  $mailParams.HTML = $_.html
   $mailParams.To = "<$($_.mail1)>", "<$($_.mail2)>"
   $msg = $MyInvocation.MyCommand.Name, ($mailParams.To -join ','), ((Get-Date $_.expireDate -f 'D').Replace(',', ''))
   Write-Host ('{0},{1},{2}' -f $msg) -F Blue
-  if (!$WhatIf) { Send-MailMessage @mailParams }
+  Send-EmailMessage @mailParams
   $mailParams
  }
 }
 
-function Show-Obj { Process { Write-Verbose ($MyInvocation.MyCommand.Name, $_ | Out-String) } }
+function Show-Obj { process { Write-Verbose ($MyInvocation.MyCommand.Name, $_ | Out-String) } }
 
 # ================================================
-Import-Module -Name 'dbatools', 'CommonScriptFunctions'
+Import-Module -Name 'dbatools', 'CommonScriptFunctions', 'Mailozaurr'
 
 Connect-ADSession -DomainControllers $DomainControllers -Credential $ADCredential -Cmdlets 'Get-ADUser'
 Get-ADObjs $OrgUnit |
