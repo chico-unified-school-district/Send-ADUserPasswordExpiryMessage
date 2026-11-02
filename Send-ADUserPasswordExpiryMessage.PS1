@@ -10,20 +10,11 @@ Special Thanks to Robert Allen!: https://activedirectorypro.com/how-to-get-ad-us
 #>
 [CMDLETBINDING()]
 param (
- [Parameter(Mandatory = $True)]
- [Alias('DCs')]
- [string[]]$DomainControllers,
- [Parameter(Mandatory = $True)]
- [PSCredential]$ADCredential,
- [Parameter(Mandatory = $True)]
- [string]$OrgUnit,
- [Parameter(Mandatory = $True)]
- [Alias('MailCred')]
- [PSCredential]$EmailCredential,
- [Parameter(Mandatory = $false)]
- [string[]]$Bcc,
- [Alias('wi')]
- [switch]$WhatIf
+ [Parameter(Mandatory = $True)][PSCredential]$ADCredential,
+ [Parameter(Mandatory = $True)][string]$OrgUnit,
+ [Parameter(Mandatory = $True)][PSCredential]$EmailCredential,
+ [Parameter(Mandatory = $false)][string[]]$Bcc,
+ [Alias('wi')][switch]$WhatIf
 )
 
 function Format-Obj {
@@ -48,10 +39,11 @@ function Format-Message {
  }
 }
 
-function Get-ADObjs ($ou) {
+function Get-ADObjs ($ou, [pscredential]$cred) {
  $params = @{
   Filter     = "employeeID -like '*' -and mail -like '*@*' -and homepage -like '*@*' -and
-   PasswordNeverExpires -eq 'False' -and Enabled -eq 'True'"
+  PasswordNeverExpires -eq 'False' -and Enabled -eq 'True'"
+  Credential = $cred
   searchBase = $ou
   properties = 'HomePage', 'Mail', 'msDS-UserPasswordExpiryTimeComputed'
  }
@@ -59,7 +51,11 @@ function Get-ADObjs ($ou) {
  $cutOff = (Get-Date).AddDays(14)
  $users = Get-ADUser @params | Where-Object { $_.DistinguishedName -notlike '*New Employee Accounts*' } |
   Select-Object -Property 'SamAccountName', 'homepage', 'mail',
-  @{Name = 'ExpiryDate'; Expression = { [datetime]::FromFileTime($_.'msDS-UserPasswordExpiryTimeComputed') } } |
+  @{Name = 'ExpiryDate'; Expression = {
+    $ft = $_.'msDS-UserPasswordExpiryTimeComputed'
+    # 0 and Int64.MaxValue mean no expiration is set; FromFileTime rejects them
+    if ($ft -gt 0 -and $ft -lt [int64]::MaxValue) { [datetime]::FromFileTime($ft) }
+   } } |
    Where-Object { ($_.ExpiryDate -is [datetime]) -and $_.ExpiryDate -lt $cutOff } | Sort-Object -Property ExpiryDate
  Write-Host ('{0},{1}' -f $MyInvocation.MyCommand.Name, @($users).count) -F Green
  $users
@@ -107,9 +103,9 @@ function Show-Obj { process { Write-Verbose ($MyInvocation.MyCommand.Name, $_ | 
 
 # ================================================
 Import-Module -Name 'dbatools', 'CommonScriptFunctions', 'Mailozaurr'
+Import-Module -Name ActiveDirectory -Cmdlet Get-ADUser -WarningAction SilentlyContinue -ErrorAction Stop
 
-Connect-ADSession -DomainControllers $DomainControllers -Credential $ADCredential -Cmdlets 'Get-ADUser'
-Get-ADObjs $OrgUnit |
+Get-ADObjs $OrgUnit -cred $ADCredential |
  Format-Obj |
   Limit-Spam |
    Format-Message |
